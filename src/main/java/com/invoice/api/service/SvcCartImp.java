@@ -9,9 +9,11 @@ import org.springframework.stereotype.Service;
 
 import com.invoice.api.dto.ApiResponse;
 import com.invoice.api.dto.DtoCustomer;
+import com.invoice.api.dto.DtoProduct;
 import com.invoice.api.entity.Cart;
 import com.invoice.api.repository.RepoCart;
 import com.invoice.configuration.client.CustomerClient;
+import com.invoice.configuration.client.ProductClient;
 import com.invoice.exception.ApiException;
 
 @Service
@@ -22,6 +24,9 @@ public class SvcCartImp implements SvcCart {
 	
 	@Autowired
 	CustomerClient customerCl;
+
+	@Autowired
+	ProductClient  productCl;
 	
 	@Override
 	public List<Cart> getCart(String rfc) {
@@ -37,20 +42,31 @@ public class SvcCartImp implements SvcCart {
 		 * Requerimiento 3
 		 * Validar que el GTIN exista. Si existe, asignar el stock del producto a la variable product_stock 
 		 */
-		Integer product_stock = 0; // cambiar el valor de cero por el stock del producto recuperado de la API Product 
+		DtoProduct product = get_product(cart.getGtin());
+		// cambiar el valor de cero por el stock del producto recuperado de la API Product 
+		Integer product_stock = product.getStock(); 
 		
-		if(cart.getQuantity() > product_stock) {
-			throw new ApiException(HttpStatus.BAD_REQUEST, "invalid quantity");
-		}
+		
 		
 		/*
 		 * Requerimiento 4
 		 * Validar si el producto ya había sido agregado al carrito para solo actualizar su cantidad
 		 */
+		Cart existing_cart = repo.findByRfcAndGtin(cart.getRfc(), cart.getGtin());
+		boolean quantity_updated = false;
+		if ( existing_cart != null){
+			existing_cart.setQuantity(existing_cart.getQuantity() + cart.getQuantity());
+			cart = existing_cart;
+			quantity_updated = true;
+		}
+
+		if(cart.getQuantity() > product_stock) 
+			throw new ApiException(HttpStatus.BAD_REQUEST, "invalid quantity");
 		
 		cart.setStatus(1);
 		repo.save(cart);
-		return new ApiResponse("item added");
+
+		return new ApiResponse(quantity_updated ? "quantity updated" :"item added");
 	}
 
 	@Override
@@ -78,6 +94,19 @@ public class SvcCartImp implements SvcCart {
 				return false;
 		}catch(Exception e) {
 			throw new ApiException(HttpStatus.BAD_REQUEST, "unable to retrieve customer information");
+		}
+	}
+
+	private DtoProduct get_product(String gtin){
+		try {
+			ResponseEntity<DtoProduct> response = productCl.getProduct(gtin);
+			if(response.getStatusCode() == HttpStatus.OK)
+				return response.getBody();
+			else
+				throw new ApiException(HttpStatus.BAD_REQUEST, "product does not exist");
+
+		} catch (Exception e) {
+			throw new ApiException(HttpStatus.BAD_REQUEST, "unable to retrieve product information");
 		}
 	}
 

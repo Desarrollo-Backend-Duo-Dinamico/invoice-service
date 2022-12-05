@@ -15,7 +15,12 @@ import com.invoice.api.entity.Cart;
 @Repository
 public interface RepoCart extends JpaRepository<Cart, Integer>{
 
-	List<Cart> findByRfcAndStatus(String rfc, Integer status);
+
+	@Query(value ="SELECT * FROM cart  WHERE rfc = :rfc AND status = :status", nativeQuery = true)
+	List<Cart> findByRfcAndStatus(@Param("rfc") String rfc,@Param("status") Integer status);
+
+	@Query(value ="SELECT * FROM cart  WHERE rfc = :rfc AND gtin = :gtin AND status = 1", nativeQuery = true)
+	Cart findByRfcAndGtin(@Param("rfc") String rfc,@Param("gtin") String gtin);
 
 	@Modifying
 	@Transactional
